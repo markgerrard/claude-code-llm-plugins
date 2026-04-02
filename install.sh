@@ -8,6 +8,9 @@ set -euo pipefail
 #   ./install.sh codex    Install Codex only
 #   ./install.sh gemini   Install Gemini only
 #   ./install.sh grok     Install Grok only
+#   ./install.sh glm      Install GLM only
+#   ./install.sh minimax  Install MiniMax only
+#   ./install.sh banana   Install Nano Banana only
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGINS_DIR="${HOME}/.claude/plugins"
@@ -18,16 +21,25 @@ INSTALLED_FILE="${PLUGINS_DIR}/installed_plugins.json"
 CODEX_SRC="${SCRIPT_DIR}/codex/plugins/codex"
 GEMINI_SRC="${SCRIPT_DIR}/gemini"
 GROK_SRC="${SCRIPT_DIR}/grok"
+GLM_SRC="${SCRIPT_DIR}/glm"
+MINIMAX_SRC="${SCRIPT_DIR}/minimax"
+BANANA_SRC="${SCRIPT_DIR}/nano-banana"
 
 # Plugin install paths
 CODEX_DEST="${CACHE_DIR}/openai-codex/codex/local"
 GEMINI_DEST="${CACHE_DIR}/google-gemini/gemini/local"
 GROK_DEST="${CACHE_DIR}/xai-grok/grok/local"
+GLM_DEST="${CACHE_DIR}/zhipu-glm/glm/local"
+MINIMAX_DEST="${CACHE_DIR}/minimax/minimax/local"
+BANANA_DEST="${CACHE_DIR}/nano-banana/nano-banana/local"
 
 # Plugin registry keys
 CODEX_KEY="codex@openai-codex"
 GEMINI_KEY="gemini@google-gemini"
 GROK_KEY="grok@xai-grok"
+GLM_KEY="glm@zhipu-glm"
+MINIMAX_KEY="minimax@minimax"
+BANANA_KEY="nano-banana@nano-banana"
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
@@ -124,18 +136,33 @@ case "$TARGET" in
   grok)
     install_plugin "Grok" "$GROK_SRC" "$GROK_DEST" "$GROK_KEY" "local"
     ;;
+  glm)
+    install_plugin "GLM" "$GLM_SRC" "$GLM_DEST" "$GLM_KEY" "local"
+    ;;
+  minimax)
+    install_plugin "MiniMax" "$MINIMAX_SRC" "$MINIMAX_DEST" "$MINIMAX_KEY" "local"
+    ;;
+  banana)
+    install_plugin "Nano Banana" "$BANANA_SRC" "$BANANA_DEST" "$BANANA_KEY" "local"
+    ;;
   all)
     install_plugin "Codex" "$CODEX_SRC" "$CODEX_DEST" "$CODEX_KEY" "local"
     install_plugin "Gemini" "$GEMINI_SRC" "$GEMINI_DEST" "$GEMINI_KEY" "local"
     install_plugin "Grok" "$GROK_SRC" "$GROK_DEST" "$GROK_KEY" "local"
+    install_plugin "GLM" "$GLM_SRC" "$GLM_DEST" "$GLM_KEY" "local"
+    install_plugin "MiniMax" "$MINIMAX_SRC" "$MINIMAX_DEST" "$MINIMAX_KEY" "local"
+    install_plugin "Nano Banana" "$BANANA_SRC" "$BANANA_DEST" "$BANANA_KEY" "local"
     ;;
   uninstall)
     uninstall_plugin "Codex" "$CODEX_DEST" "$CODEX_KEY"
     uninstall_plugin "Gemini" "$GEMINI_DEST" "$GEMINI_KEY"
     uninstall_plugin "Grok" "$GROK_DEST" "$GROK_KEY"
+    uninstall_plugin "GLM" "$GLM_DEST" "$GLM_KEY"
+    uninstall_plugin "MiniMax" "$MINIMAX_DEST" "$MINIMAX_KEY"
+    uninstall_plugin "Nano Banana" "$BANANA_DEST" "$BANANA_KEY"
     ;;
   *)
-    echo "Usage: $0 [codex|gemini|grok|all|uninstall]"
+    echo "Usage: $0 [codex|gemini|grok|glm|minimax|banana|all|uninstall]"
     exit 1
     ;;
 esac
