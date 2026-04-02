@@ -11,6 +11,7 @@ set -euo pipefail
 #   ./install.sh glm      Install GLM only
 #   ./install.sh minimax  Install MiniMax only
 #   ./install.sh banana   Install Nano Banana only
+#   ./install.sh pi       Install Pi coding agent (for /glm:code, /minimax:code)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGINS_DIR="${HOME}/.claude/plugins"
@@ -40,6 +41,8 @@ GROK_KEY="grok@xai-grok"
 GLM_KEY="glm@zhipu-glm"
 MINIMAX_KEY="minimax@minimax"
 BANANA_KEY="nano-banana@nano-banana"
+
+PI_SRC="${SCRIPT_DIR}/pi"
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
@@ -145,6 +148,53 @@ case "$TARGET" in
   banana)
     install_plugin "Nano Banana" "$BANANA_SRC" "$BANANA_DEST" "$BANANA_KEY" "local"
     ;;
+  pi)
+    if command -v pi &>/dev/null; then
+      info "Pi coding agent already installed ($(pi --version 2>/dev/null || echo 'unknown version'))"
+    else
+      info "Installing Pi coding agent globally..."
+      npm install -g @mariozechner/pi-coding-agent
+    fi
+    # Set up models.json if not present
+    if [ ! -f "${HOME}/.pi/agent/models.json" ]; then
+      mkdir -p "${HOME}/.pi/agent"
+      info "Creating ~/.pi/agent/models.json with GLM, MiniMax, and Grok providers"
+      cat > "${HOME}/.pi/agent/models.json" << 'PIEOF'
+{
+  "providers": {
+    "minimax": {
+      "baseUrl": "https://api.minimax.io/v1",
+      "apiKey": "MINIMAX_API_KEY",
+      "api": "openai-completions",
+      "models": [
+        { "id": "MiniMax-M2.7-highspeed", "contextWindow": 1000000 },
+        { "id": "MiniMax-M2-highspeed", "contextWindow": 1000000 }
+      ]
+    },
+    "glm": {
+      "baseUrl": "https://api.z.ai/api/coding/paas/v4",
+      "apiKey": "ZHIPU_API_KEY",
+      "api": "openai-completions",
+      "models": [
+        { "id": "glm-5-turbo", "contextWindow": 131072 },
+        { "id": "glm-5", "contextWindow": 131072 }
+      ]
+    },
+    "grok": {
+      "baseUrl": "https://api.x.ai/v1",
+      "apiKey": "XAI_API_KEY",
+      "api": "openai-completions",
+      "models": [
+        { "id": "grok-4-1-fast-non-reasoning", "contextWindow": 2000000 }
+      ]
+    }
+  }
+}
+PIEOF
+    else
+      info "Pi models.json already exists at ~/.pi/agent/models.json"
+    fi
+    ;;
   all)
     install_plugin "Codex" "$CODEX_SRC" "$CODEX_DEST" "$CODEX_KEY" "local"
     install_plugin "Gemini" "$GEMINI_SRC" "$GEMINI_DEST" "$GEMINI_KEY" "local"
@@ -152,6 +202,13 @@ case "$TARGET" in
     install_plugin "GLM" "$GLM_SRC" "$GLM_DEST" "$GLM_KEY" "local"
     install_plugin "MiniMax" "$MINIMAX_SRC" "$MINIMAX_DEST" "$MINIMAX_KEY" "local"
     install_plugin "Nano Banana" "$BANANA_SRC" "$BANANA_DEST" "$BANANA_KEY" "local"
+    # Auto-install Pi if GLM or MiniMax are installed (they need it for /code commands)
+    if command -v pi &>/dev/null; then
+      info "Pi coding agent already installed"
+    else
+      info "Installing Pi coding agent (needed for /glm:code and /minimax:code)..."
+      npm install -g @mariozechner/pi-coding-agent
+    fi
     ;;
   uninstall)
     uninstall_plugin "Codex" "$CODEX_DEST" "$CODEX_KEY"
@@ -162,7 +219,7 @@ case "$TARGET" in
     uninstall_plugin "Nano Banana" "$BANANA_DEST" "$BANANA_KEY"
     ;;
   *)
-    echo "Usage: $0 [codex|gemini|grok|glm|minimax|banana|all|uninstall]"
+    echo "Usage: $0 [codex|gemini|grok|glm|minimax|banana|pi|all|uninstall]"
     exit 1
     ;;
 esac
