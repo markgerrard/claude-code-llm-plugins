@@ -28,6 +28,7 @@ import {
   loadPromptTemplate,
   interpolateTemplate,
 } from "./lib/glm.mjs";
+import { getGitDiff } from "./lib/context.mjs";
 import {
   generateJobId,
   upsertJob,
@@ -60,6 +61,7 @@ import {
 } from "./lib/render.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
 import { terminateProcessTree } from "./lib/process.mjs";
+import { createPiClient } from "./lib/pi-rpc.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 
@@ -118,7 +120,7 @@ function launchBackgroundWorker(jobId, kind, prompt, options = {}) {
     systemPrompt: options.systemPrompt || null,
   });
 
-  writeJobFile(workspaceRoot, jobId, { ...jobRecord, prompt, systemPrompt: options.systemPrompt });
+  writeJobFile(workspaceRoot, jobId, { ...jobRecord, prompt, systemPrompt: options.systemPrompt, stdinPayload: options.stdinPayload || null });
   upsertJob(workspaceRoot, jobRecord);
 
   const workerArgs = [SCRIPT_PATH, "task-worker", jobId, "--kind", kind];
@@ -196,47 +198,37 @@ async function buildTaskPrompt(flags, positional) {
 }
 
 async function buildReviewPrompt(flags, positional) {
-  const stdinContent = await readStdin();
-  const focus = flags.focus || positional.join(" ") || "";
+  const focus = positional.join(" ") || "general code quality";
+  const base = flags.base || "HEAD";
+  const scope = flags.scope || "auto";
 
-  if (!stdinContent.trim()) {
-    throw new Error(
-      "No diff content received on stdin.\n" +
-      "Usage: git diff | node scripts/glm-companion.mjs review [--focus <focus>]\n" +
-      "Or from Claude Code: /glm:review [focus]"
-    );
-  }
+  const diff = await getGitDiff(base, scope);
+  if (!diff) return { prompt: null, title: focus, empty: true };
 
   let systemPrompt;
   try {
     const template = await loadPromptTemplate("code-review");
-    systemPrompt = interpolateTemplate(template, { focus: focus || "general code quality" });
+    systemPrompt = interpolateTemplate(template, { focus });
   } catch {
-    systemPrompt = [
-      "You are an expert code reviewer. Review the following git diff carefully.",
-      focus ? `Focus area: ${focus}` : "",
-      "",
-      "Structure your review as:",
-      "## Summary — What changed and why (infer from the diff)",
-      "## Issues — Bugs, logic errors, security concerns, edge cases",
-      "## Suggestions — Improvements, refactoring opportunities, better patterns",
-      "## Verdict — Overall assessment: approve / request-changes / needs-discussion",
-      "",
-      "Be direct. Flag real problems. Skip trivial style nits unless they affect readability.",
-    ].filter(Boolean).join("\n");
+    systemPrompt = `You are an expert code reviewer. Review the git diff provided in the user message.\n\nFocus: ${focus}\n\nProvide: Summary, Issues, Suggestions, Verdict. Be direct. Skip trivial nits.`;
   }
 
-  const prompt = `Review this diff:\n\n\`\`\`diff\n${stdinContent}\n\`\`\``;
-
-  return { prompt, systemPrompt, title: `code review${focus ? `: ${focus}` : ""}` };
+  return { prompt: `Review this diff for: ${focus}`, systemPrompt, stdinPayload: diff, title: `review: ${focus}` };
 }
 
 // ─── Generic run-or-background handler ──────────────────────────────
 
 async function runCommand(kind, flags, positional, promptBuilder) {
-  const { prompt, systemPrompt, title } = await promptBuilder(flags, positional);
+  const { prompt, systemPrompt, stdinPayload, title, empty } = await promptBuilder(flags, positional);
 
-  const isBackground = flags.background === true;
+  if (empty) {
+    console.log("No changes found to review.");
+    return;
+  }
+
+  // task and review auto-background unless --wait is explicitly passed
+  const autoBackground = (kind === "task" || kind === "review") && flags.wait !== true;
+  const isBackground = flags.background === true || autoBackground;
 
   if (isBackground) {
     const jobId = generateJobId("glm");
@@ -244,6 +236,7 @@ async function runCommand(kind, flags, positional, promptBuilder) {
       model: flags.model,
       title,
       systemPrompt,
+      stdinPayload,
     });
 
     const lines = [
@@ -262,7 +255,11 @@ async function runCommand(kind, flags, positional, promptBuilder) {
 
   // Foreground
   console.error(`[glm] Running ${kind}...`);
-  const result = await runGlmPrompt(prompt, {
+  // For API-based plugins, merge stdinPayload into the prompt
+  // (no CLI stdin pipe — the API takes everything as message content)
+  const fullPrompt = stdinPayload ? `${prompt}\n\n${stdinPayload}` : prompt;
+
+  const result = await runGlmPrompt(fullPrompt, {
     model: flags.model,
     systemPrompt,
   });
@@ -342,6 +339,7 @@ async function cmdTaskWorker(flags, positional) {
   const logFile = jobData.logFile || resolveJobLogFile(workspaceRoot, jobId);
   const prompt = jobData.prompt;
   const systemPrompt = jobData.systemPrompt || null;
+  const stdinPayload = jobData.stdinPayload || null;
 
   if (!prompt) {
     appendLogLine(logFile, "No prompt found in job file.");
@@ -354,7 +352,8 @@ async function cmdTaskWorker(flags, positional) {
   upsertJob(workspaceRoot, { id: jobId, status: "running", phase: "running", pid: process.pid });
 
   try {
-    const result = await runGlmPrompt(prompt, {
+    const fullPrompt = stdinPayload ? `${prompt}\n\n${stdinPayload}` : prompt;
+    const result = await runGlmPrompt(fullPrompt, {
       model: flags.model,
       systemPrompt: systemPrompt || undefined,
       timeout: 300_000,
@@ -400,6 +399,62 @@ async function cmdTaskWorker(flags, positional) {
   }
 }
 
+// ─── code (Pi RPC) ──────────────────────────────────────────────────
+
+async function cmdCode(flags, positional) {
+  const task = positional.join(" ");
+  if (!task) {
+    console.error("Error: No task provided.\nUsage: /glm:code <task>");
+    process.exit(1);
+  }
+
+  const model = normalizeRequestedModel(flags.model);
+  console.error(`[glm:code] Starting Pi with GLM (${model})...`);
+
+  const workDir = resolveWorkspaceRoot(process.cwd());
+  console.error(`[glm:code] Working directory: ${workDir}`);
+
+  const pi = createPiClient({
+    provider: "glm",
+    model: model,
+    cwd: workDir,
+  });
+
+  try {
+    await pi.start();
+    console.error("[glm:code] Pi started. Sending task...");
+
+    const events = await pi.promptAndWait(task, 300_000);
+
+    // Extract text from events
+    const textParts = [];
+    for (const event of events) {
+      if (event.type === "text_delta") {
+        textParts.push(event.text || event.delta || "");
+      }
+      if (event.type === "tool_start") {
+        console.error(`[glm:code] Tool: ${event.tool} ${event.args ? JSON.stringify(event.args).slice(0, 80) : ""}`);
+      }
+    }
+
+    // Get final assistant text
+    let finalText;
+    try {
+      finalText = await pi.getLastAssistantText();
+    } catch {
+      finalText = textParts.join("") || "(No output captured)";
+    }
+
+    console.log(finalText);
+  } catch (err) {
+    console.error(`[glm:code] Error: ${err.message}`);
+    if (pi.getStderr()) console.error(`[glm:code] stderr: ${pi.getStderr().slice(0, 500)}`);
+    process.exit(1);
+  } finally {
+    await pi.stop();
+  }
+}
+
 // ─── main ───────────────────────────────────────────────────────────
 
 async function main() {
@@ -417,6 +472,7 @@ async function main() {
     case "status":      await cmdStatus(flags, positional); break;
     case "result":      await cmdResult(flags, positional); break;
     case "cancel":      await cmdCancel(flags, positional); break;
+    case "code":        await cmdCode(flags, positional); break;
     case "task-worker": await cmdTaskWorker(flags, positional); break;
     default:
       console.error(`Unknown subcommand: ${subcommand}`);
