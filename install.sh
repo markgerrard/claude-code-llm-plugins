@@ -67,7 +67,12 @@ PLUGIN_MP[banana]="nano-banana"
 PLUGIN_NAME[banana]="nano-banana"
 PLUGIN_VER[banana]="local"
 
-ALL_PLUGINS=(codex gemini grok glm minimax banana)
+PLUGIN_SRC[postmark]="${SCRIPT_DIR}/postmark"
+PLUGIN_MP[postmark]="postmark"
+PLUGIN_NAME[postmark]="postmark"
+PLUGIN_VER[postmark]="local"
+
+ALL_PLUGINS=(codex gemini grok glm minimax banana postmark)
 
 info()  { echo "  [+] $1"; }
 warn()  { echo "  [!] $1"; }
@@ -303,7 +308,7 @@ check_jq
 TARGET="${1:-all}"
 
 case "$TARGET" in
-  codex|gemini|grok|glm|minimax|banana)
+  codex|gemini|grok|glm|minimax|banana|postmark)
     install_plugin "$TARGET"
     ;;
   pi)

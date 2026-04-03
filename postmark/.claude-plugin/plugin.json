@@ -1,0 +1,8 @@
+{
+  "name": "postmark",
+  "version": "1.0.0",
+  "description": "Send emails, use templates, and check delivery stats via Postmark.",
+  "author": {
+    "name": "Mark"
+  }
+}
