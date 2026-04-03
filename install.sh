@@ -72,7 +72,12 @@ PLUGIN_MP[postmark]="postmark"
 PLUGIN_NAME[postmark]="postmark"
 PLUGIN_VER[postmark]="local"
 
-ALL_PLUGINS=(codex gemini grok glm minimax banana postmark)
+PLUGIN_SRC[gdrive]="${SCRIPT_DIR}/google-drive"
+PLUGIN_MP[gdrive]="google-drive"
+PLUGIN_NAME[gdrive]="google-drive"
+PLUGIN_VER[gdrive]="local"
+
+ALL_PLUGINS=(codex gemini grok glm minimax banana postmark gdrive)
 
 info()  { echo "  [+] $1"; }
 warn()  { echo "  [!] $1"; }
@@ -308,7 +313,7 @@ check_jq
 TARGET="${1:-all}"
 
 case "$TARGET" in
-  codex|gemini|grok|glm|minimax|banana|postmark)
+  codex|gemini|grok|glm|minimax|banana|postmark|gdrive)
     install_plugin "$TARGET"
     ;;
   pi)

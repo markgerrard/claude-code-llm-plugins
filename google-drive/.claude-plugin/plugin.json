@@ -1,0 +1,8 @@
+{
+  "name": "google-drive",
+  "version": "1.0.0",
+  "description": "Upload, download, list, search, and manage files on Google Drive.",
+  "author": {
+    "name": "Mark"
+  }
+}

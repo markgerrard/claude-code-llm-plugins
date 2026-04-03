@@ -1,0 +1,16 @@
+{
+  "name": "google-drive",
+  "version": "1.0.0",
+  "description": "Upload, download, list, search, and manage files on Google Drive from Claude Code.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "googleapis": "^171.4.0"
+  }
+}
