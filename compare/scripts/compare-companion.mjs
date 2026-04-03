@@ -10,6 +10,7 @@
  */
 
 import process from "node:process";
+import { spawnSync } from "node:child_process";
 import { fanOut } from "./lib/fanout.mjs";
 import { parseModelList, listModels, getModel, DEFAULT_MODELS } from "./lib/models.mjs";
 
@@ -157,6 +158,94 @@ async function cmdConsensus(flags, positional) {
   console.log(renderConsensus(results, prompt));
 }
 
+async function cmdReview(flags, positional) {
+  const focus = positional.join(" ") || "general code review";
+  const base = flags.base || "HEAD";
+  const scope = flags.scope || "auto";
+
+  // Get git diff
+  const diffArgs = ["diff"];
+  if (scope === "branch") {
+    diffArgs.push(`${base}...HEAD`);
+  } else if (scope === "working-tree") {
+    // unstaged only
+  } else {
+    diffArgs.push(base);
+  }
+
+  const diffResult = spawnSync("git", diffArgs, {
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
+    timeout: 30_000,
+  });
+
+  const diff = diffResult.stdout?.trim();
+  if (!diff) {
+    console.log("No changes found to review.");
+    process.exit(0);
+  }
+
+  const models = parseModelList(flags.models);
+  const prompt =
+    `You are an expert code reviewer. Review the following git diff.\n\n` +
+    `Focus: ${focus}\n\n` +
+    `Provide:\n` +
+    `1. **Critical issues** — bugs, security problems, data loss risks\n` +
+    `2. **Important suggestions** — performance, maintainability, best practices\n` +
+    `3. **Minor notes** — style, naming, documentation\n\n` +
+    `Be specific: reference file names and line numbers.\n\n` +
+    `--- GIT DIFF ---\n${diff}`;
+
+  console.error(`[review] Sending diff (${diff.split("\n").length} lines) to ${models.length} models: ${models.join(", ")}...`);
+
+  const results = await fanOut(models, prompt);
+  console.log(renderReview(results, focus, diff));
+}
+
+function renderReview(results, focus, diff) {
+  const successful = results.filter((r) => !r.error);
+  const failed = results.filter((r) => r.error);
+  const diffLines = diff.split("\n").length;
+
+  const lines = [
+    `## Multi-Model Code Review`,
+    "",
+    `**Focus:** ${focus}`,
+    `**Diff:** ${diffLines} lines`,
+    `**Models:** ${results.map((r) => r.model).join(", ")}`,
+    `**Responses:** ${successful.length}/${results.length}`,
+    "",
+  ];
+
+  if (failed.length) {
+    lines.push(`*Failed: ${failed.map((r) => `${r.model} (${r.error})`).join(", ")}*`);
+    lines.push("");
+  }
+
+  // Individual reviews
+  for (const r of successful) {
+    const duration = (r.durationMs / 1000).toFixed(1);
+    lines.push(`### ${r.model} (${duration}s)`);
+    lines.push("");
+    lines.push(r.text);
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+  }
+
+  // Consensus synthesis
+  lines.push("### Consensus Synthesis");
+  lines.push("");
+  lines.push("*Review the individual assessments above. Key questions:*");
+  lines.push("- **Critical issues** — which issues did multiple reviewers flag? (high confidence)");
+  lines.push("- **Contradictions** — where do reviewers disagree? (investigate)");
+  lines.push("- **Unique finds** — important issues only one reviewer caught (worth checking)");
+  lines.push("- **Overall verdict** — is this diff safe to merge?");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
 // ─── Main ───────────────────────────────────────────────────────────
 
 async function main() {
@@ -177,6 +266,7 @@ async function main() {
   switch (subcommand) {
     case "compare":   await cmdCompare(flags, positional); break;
     case "consensus": await cmdConsensus(flags, positional); break;
+    case "review":    await cmdReview(flags, positional); break;
     case "models":    console.log(renderModels()); break;
     default:
       console.error(`Unknown subcommand: ${subcommand}`);
