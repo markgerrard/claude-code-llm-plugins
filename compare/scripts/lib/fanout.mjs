@@ -4,7 +4,40 @@
  */
 
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { getModel, resolveCompanionPath } from "./models.mjs";
+
+/**
+ * Load API keys from known env files so child processes have them.
+ */
+function loadApiKeys() {
+  const extra = {};
+  const envFiles = [
+    ["ZHIPU_API_KEY", path.join(process.env.HOME || "", ".glm", ".env")],
+    ["XAI_API_KEY", path.join(process.env.HOME || "", ".grok", ".env")],
+    ["MINIMAX_API_KEY", path.join(process.env.HOME || "", ".minimax", ".env")],
+    ["MISTRAL_API_KEY", path.join(process.env.HOME || "", ".vibe", ".env")],
+    ["GOOGLE_API_KEY", path.join(process.env.HOME || "", ".banana", ".env")],
+  ];
+  for (const [key, file] of envFiles) {
+    if (process.env[key]) continue;
+    try {
+      const content = fs.readFileSync(file, "utf8");
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const idx = trimmed.indexOf("=");
+        if (idx > 0 && trimmed.slice(0, idx).trim() === key) {
+          extra[key] = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
+        }
+      }
+    } catch { /* file doesn't exist */ }
+  }
+  return extra;
+}
+
+const _apiKeys = loadApiKeys();
 
 /**
  * Call a single model and return the response text.
@@ -49,7 +82,7 @@ function callModel(modelKey, prompt, timeout = 300_000) {
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env },
+      env: { ...process.env, ..._apiKeys },
       timeout,
     });
 

@@ -10,6 +10,8 @@
  */
 
 import process from "node:process";
+import fs from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fanOut } from "./lib/fanout.mjs";
 import { parseModelList, listModels, getModel, DEFAULT_MODELS } from "./lib/models.mjs";
@@ -113,6 +115,18 @@ function renderConsensus(results, prompt) {
   return lines.join("\n");
 }
 
+/**
+ * Save results to a markdown file in the current directory.
+ * Returns the file path.
+ */
+function saveResults(content, prefix = "compare") {
+  const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const filename = `${prefix}-${ts}.md`;
+  const filePath = path.join(process.cwd(), filename);
+  fs.writeFileSync(filePath, content, "utf8");
+  return filePath;
+}
+
 function renderModels() {
   const keys = listModels();
   const lines = [
@@ -146,7 +160,10 @@ async function cmdCompare(flags, positional) {
   console.error(`[compare] Querying ${models.length} models in parallel: ${models.join(", ")}...`);
 
   const results = await fanOut(models, prompt);
-  console.log(renderCompare(results, prompt));
+  const output = renderCompare(results, prompt);
+  const saved = saveResults(output, "compare");
+  console.log(output);
+  console.error(`[compare] Results saved to ${saved}`);
 }
 
 async function cmdConsensus(flags, positional) {
@@ -160,7 +177,10 @@ async function cmdConsensus(flags, positional) {
   console.error(`[consensus] Querying ${models.length} models in parallel: ${models.join(", ")}...`);
 
   const results = await fanOut(models, prompt);
-  console.log(renderConsensus(results, prompt));
+  const output = renderConsensus(results, prompt);
+  const saved = saveResults(output, "consensus");
+  console.log(output);
+  console.error(`[consensus] Results saved to ${saved}`);
 }
 
 async function cmdReview(flags, positional) {
@@ -225,7 +245,10 @@ async function cmdReview(flags, positional) {
 
   const timeout = full ? 600_000 : 300_000; // 10 min for full, 5 min for diff
   const results = await fanOut(models, prompt, timeout);
-  console.log(renderReview(results, focus, mode));
+  const output = renderReview(results, focus, mode);
+  const saved = saveResults(output, "review");
+  console.log(output);
+  console.error(`[review] Results saved to ${saved}`);
 }
 
 function renderReview(results, focus, mode) {

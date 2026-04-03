@@ -15,7 +15,7 @@ const MODEL_REGISTRY = {
     name: "Codex",
     type: "cli",
     binary: "codex",
-    cliArgs: ["exec"],
+    cliArgs: ["exec", "--dangerously-bypass-approvals-and-sandbox"],
     marketplace: "openai-codex",
     plugin: "codex",
   },
