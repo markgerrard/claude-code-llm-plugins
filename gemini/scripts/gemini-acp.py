@@ -111,6 +111,8 @@ def _add_prompt_command(
                      help="Resume a previous job's session (ask/task only)")
     sub.add_argument("--text", action="store_true", default=False,
                      help="Output as plain text instead of JSON")
+    sub.add_argument("--stdin-prompt", action="store_true", default=False,
+                     help="Read prompt from stdin (for multiline prompts)")
 
 
 # ---------------------------------------------------------------------------
@@ -163,12 +165,15 @@ async def _handle_prompt(args: argparse.Namespace) -> None:
     command = args.command
     cwd = _resolve_cwd(args)
 
-    # Join positional args into prompt
-    prompt_parts = getattr(args, "prompt", [])
-    if not prompt_parts:
-        _error_exit(command, "prompt is required", "missing_prompt")
+    # Read prompt from stdin or positional args
+    if getattr(args, "stdin_prompt", False):
+        prompt = sys.stdin.read().strip()
+    else:
+        prompt_parts = getattr(args, "prompt", [])
+        prompt = " ".join(prompt_parts) if prompt_parts else ""
 
-    prompt = " ".join(prompt_parts)
+    if not prompt:
+        _error_exit(command, "prompt is required", "missing_prompt")
 
     # Validate --resume only for resumable commands
     resume = getattr(args, "resume", None)

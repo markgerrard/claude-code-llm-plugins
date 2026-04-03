@@ -9,15 +9,57 @@ function tryParseJson(str) {
   try { return JSON.parse(str); } catch { return null; }
 }
 
+/**
+ * Separate flags (--key value) from the prompt text in an args array.
+ * The first arg that doesn't start with "--" and isn't a flag value is the prompt.
+ * This allows passing multiline prompts via stdin instead of as spawn args.
+ */
+function splitPromptFromArgs(args) {
+  const flags = [];
+  let prompt = null;
+  let i = 0;
+  while (i < args.length) {
+    if (args[i].startsWith("--")) {
+      flags.push(args[i]);
+      // Check if next arg is the flag's value (not another flag, not the last arg)
+      if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
+        flags.push(args[i + 1]);
+        i += 2;
+      } else {
+        i++;
+      }
+    } else {
+      // First non-flag arg is the prompt (may contain newlines)
+      prompt = args.slice(i).join(" ");
+      break;
+    }
+  }
+  return { flags, prompt };
+}
+
 export async function callGeminiAcp(subcommand, args = [], options = {}) {
   const cwd = options.cwd || process.cwd();
+
+  // Separate flags from the prompt — prompt may contain newlines which spawn rejects.
+  // Pass the prompt via stdin using --stdin-prompt flag.
+  const { flags, prompt } = splitPromptFromArgs(args);
+
   return new Promise((resolve) => {
-    const proc = spawn("python3", [GEMINI_ACP_PATH, subcommand, ...args], {
+    const spawnArgs = [GEMINI_ACP_PATH, subcommand, ...flags];
+    if (prompt) spawnArgs.push("--stdin-prompt");
+
+    const proc = spawn("python3", spawnArgs, {
       cwd,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [prompt ? "pipe" : "ignore", "pipe", "pipe"],
       env: { ...process.env, ...options.env },
       timeout: options.timeout || 600_000,
     });
+
+    if (prompt) {
+      proc.stdin.write(prompt);
+      proc.stdin.end();
+    }
+
     let stdout = "";
     let stderr = "";
     proc.stdout.on("data", (chunk) => { stdout += chunk; });
@@ -44,12 +86,21 @@ export async function callGeminiAcp(subcommand, args = [], options = {}) {
 
 export async function* streamGeminiAcp(subcommand, args = [], options = {}) {
   const cwd = options.cwd || process.cwd();
-  const proc = spawn("python3", [GEMINI_ACP_PATH, subcommand, "--stream", ...args], {
+  const { flags, prompt } = splitPromptFromArgs(args);
+  const spawnArgs = [GEMINI_ACP_PATH, subcommand, "--stream", ...flags];
+  if (prompt) spawnArgs.push("--stdin-prompt");
+
+  const proc = spawn("python3", spawnArgs, {
     cwd,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: [prompt ? "pipe" : "ignore", "pipe", "pipe"],
     env: { ...process.env, ...options.env },
     timeout: options.timeout || 600_000,
   });
+
+  if (prompt) {
+    proc.stdin.write(prompt);
+    proc.stdin.end();
+  }
   let buffer = "";
   proc.stderr.on("data", () => {}); // drain stderr
 
