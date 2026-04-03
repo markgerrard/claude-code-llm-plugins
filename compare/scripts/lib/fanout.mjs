@@ -86,6 +86,7 @@ function callModel(modelKey, prompt, timeout = 300_000, options = {}) {
 
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, {
+      cwd: process.cwd(),
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ..._apiKeys },
       timeout,

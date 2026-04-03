@@ -196,7 +196,10 @@ async function cmdReview(flags, positional) {
   if (full) {
     // Full repo mode — let each CLI traverse the repo itself
     prompt =
-      `You are an expert code reviewer. Review this entire repository.\n\n` +
+      `You are an expert code reviewer. Review this repository.\n\n` +
+      `IMPORTANT: You MUST read the actual source files before writing your review. ` +
+      `Start by listing the directory structure, then read the key files. ` +
+      `Do NOT generate a review from assumptions — only reference files you have actually read.\n\n` +
       `Focus: ${focus}\n\n` +
       `Provide:\n` +
       `1. **Architecture** — overall structure, patterns, anti-patterns\n` +
@@ -204,7 +207,7 @@ async function cmdReview(flags, positional) {
       `3. **Important suggestions** — performance, maintainability, best practices\n` +
       `4. **Technical debt** — areas that need refactoring or attention\n` +
       `5. **Strengths** — what's done well\n\n` +
-      `Be specific: reference file names and line numbers.`;
+      `Be specific: reference actual file names and line numbers from the files you read.`;
     mode = "full repo";
     console.error(`[review] Full repo review via ${models.length} models: ${models.join(", ")}...`);
   } else {
