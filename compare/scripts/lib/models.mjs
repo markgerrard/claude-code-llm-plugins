@@ -36,6 +36,7 @@ const MODEL_REGISTRY = {
   glm: {
     name: "GLM",
     command: "ask",
+    fullCommand: "code",
     companion: "glm-companion.mjs",
     marketplace: "zhipu-glm",
     plugin: "glm",
@@ -43,6 +44,7 @@ const MODEL_REGISTRY = {
   minimax: {
     name: "MiniMax",
     command: "ask",
+    fullCommand: "code",
     companion: "minimax-companion.mjs",
     marketplace: "minimax",
     plugin: "minimax",

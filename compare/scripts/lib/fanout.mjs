@@ -45,7 +45,7 @@ const _apiKeys = loadApiKeys();
  *   - "companion" (default): spawn node <companion-script> <command> <prompt>
  *   - "cli": spawn <binary> <cliArgs...> <prompt>
  */
-function callModel(modelKey, prompt, timeout = 300_000) {
+function callModel(modelKey, prompt, timeout = 300_000, options = {}) {
   const def = getModel(modelKey);
   if (!def) {
     return Promise.resolve({
@@ -57,6 +57,9 @@ function callModel(modelKey, prompt, timeout = 300_000) {
   }
 
   let cmd, args;
+
+  // Pick the right command — use fullCommand (e.g., "code" for pi agent) when --full
+  const useCommand = (options.full && def.fullCommand) ? def.fullCommand : def.command;
 
   if (def.type === "cli") {
     // Direct CLI binary (e.g., codex exec)
@@ -74,7 +77,7 @@ function callModel(modelKey, prompt, timeout = 300_000) {
       });
     }
     cmd = "node";
-    args = [companionPath, def.command, prompt];
+    args = [companionPath, useCommand, prompt];
   }
 
   const start = Date.now();
@@ -131,7 +134,7 @@ function callModel(modelKey, prompt, timeout = 300_000) {
  * @param {number} timeout - Per-model timeout in ms
  * @returns {Promise<Array<{model, text, durationMs, error}>>}
  */
-export async function fanOut(modelKeys, prompt, timeout = 300_000) {
-  const promises = modelKeys.map((key) => callModel(key, prompt, timeout));
+export async function fanOut(modelKeys, prompt, timeout = 300_000, options = {}) {
+  const promises = modelKeys.map((key) => callModel(key, prompt, timeout, options));
   return Promise.all(promises);
 }
