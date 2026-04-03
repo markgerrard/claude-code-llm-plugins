@@ -1,0 +1,8 @@
+{
+  "name": "compare",
+  "version": "1.0.0",
+  "description": "Fan out prompts to multiple LLM models in parallel, compare responses side-by-side or synthesise consensus.",
+  "author": {
+    "name": "Mark"
+  }
+}
