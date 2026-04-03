@@ -40,47 +40,47 @@ declare -A PLUGIN_SRC PLUGIN_MP PLUGIN_NAME PLUGIN_VER
 PLUGIN_SRC[codex]="${SCRIPT_DIR}/codex/plugins/codex"
 PLUGIN_MP[codex]="openai-codex"
 PLUGIN_NAME[codex]="codex"
-PLUGIN_VER[codex]="local"
+PLUGIN_VER[codex]="1.0.0"
 
 PLUGIN_SRC[gemini]="${SCRIPT_DIR}/gemini"
 PLUGIN_MP[gemini]="google-gemini"
 PLUGIN_NAME[gemini]="gemini"
-PLUGIN_VER[gemini]="local"
+PLUGIN_VER[gemini]="1.0.0"
 
 PLUGIN_SRC[grok]="${SCRIPT_DIR}/grok"
 PLUGIN_MP[grok]="xai-grok"
 PLUGIN_NAME[grok]="grok"
-PLUGIN_VER[grok]="local"
+PLUGIN_VER[grok]="1.0.0"
 
 PLUGIN_SRC[glm]="${SCRIPT_DIR}/glm"
 PLUGIN_MP[glm]="zhipu-glm"
 PLUGIN_NAME[glm]="glm"
-PLUGIN_VER[glm]="local"
+PLUGIN_VER[glm]="1.0.0"
 
 PLUGIN_SRC[minimax]="${SCRIPT_DIR}/minimax"
 PLUGIN_MP[minimax]="minimax"
 PLUGIN_NAME[minimax]="minimax"
-PLUGIN_VER[minimax]="local"
+PLUGIN_VER[minimax]="1.0.0"
 
 PLUGIN_SRC[banana]="${SCRIPT_DIR}/nano-banana"
 PLUGIN_MP[banana]="nano-banana"
 PLUGIN_NAME[banana]="nano-banana"
-PLUGIN_VER[banana]="local"
+PLUGIN_VER[banana]="1.0.0"
 
 PLUGIN_SRC[postmark]="${SCRIPT_DIR}/postmark"
 PLUGIN_MP[postmark]="postmark"
 PLUGIN_NAME[postmark]="postmark"
-PLUGIN_VER[postmark]="local"
+PLUGIN_VER[postmark]="1.0.0"
 
 PLUGIN_SRC[gdrive]="${SCRIPT_DIR}/google-drive"
 PLUGIN_MP[gdrive]="google-drive"
 PLUGIN_NAME[gdrive]="google-drive"
-PLUGIN_VER[gdrive]="local"
+PLUGIN_VER[gdrive]="1.0.0"
 
 PLUGIN_SRC[compare]="${SCRIPT_DIR}/compare"
 PLUGIN_MP[compare]="compare"
 PLUGIN_NAME[compare]="compare"
-PLUGIN_VER[compare]="local"
+PLUGIN_VER[compare]="1.0.0"
 
 ALL_PLUGINS=(codex gemini grok glm minimax banana postmark gdrive compare)
 
