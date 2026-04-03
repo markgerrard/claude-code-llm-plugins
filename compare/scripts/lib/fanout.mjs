@@ -58,8 +58,10 @@ function callModel(modelKey, prompt, timeout = 300_000, options = {}) {
 
   let cmd, args;
 
-  // Pick the right command — use fullCommand (e.g., "code" for pi agent) when --full
-  const useCommand = (options.full && def.fullCommand) ? def.fullCommand : def.command;
+  // Pick the right command — use fullCommand (e.g., "code" for pi agent) when:
+  //   --full flag is set, OR command is "review" (reviews need file access)
+  const needsFileAccess = options.full || options.review;
+  const useCommand = (needsFileAccess && def.fullCommand) ? def.fullCommand : def.command;
 
   if (def.type === "cli") {
     // Direct CLI binary (e.g., codex exec)

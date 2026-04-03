@@ -244,7 +244,7 @@ async function cmdReview(flags, positional) {
   }
 
   const timeout = full ? 600_000 : 300_000; // 10 min for full, 5 min for diff
-  const results = await fanOut(models, prompt, timeout, { full });
+  const results = await fanOut(models, prompt, timeout, { full, review: true });
   const output = renderReview(results, focus, mode);
   const saved = saveResults(output, "review");
   console.log(output);
