@@ -420,21 +420,51 @@ async function cmdCode(flags, positional) {
     cwd: workDir,
   });
 
+  const MAX_TURNS = 20;
+
   try {
     await pi.start();
     console.error("[glm:code] Pi started. Sending task...");
 
-    const events = await pi.promptAndWait(task, 300_000);
+    let prompt = task;
+    let allTextParts = [];
 
-    // Extract text from events
-    const textParts = [];
-    for (const event of events) {
-      if (event.type === "text_delta") {
-        textParts.push(event.text || event.delta || "");
+    for (let turn = 1; turn <= MAX_TURNS; turn++) {
+      console.error(`[glm:code] Turn ${turn}/${MAX_TURNS}...`);
+
+      const events = await pi.promptAndWait(prompt);
+
+      // Extract text and log tool usage
+      let turnUsedTools = false;
+      const turnTextParts = [];
+      for (const event of events) {
+        if (event.type === "text_delta") {
+          turnTextParts.push(event.text || event.delta || "");
+        }
+        if (event.type === "tool_start") {
+          turnUsedTools = true;
+          console.error(`[glm:code] Tool: ${event.tool} ${event.args ? JSON.stringify(event.args).slice(0, 80) : ""}`);
+        }
       }
-      if (event.type === "tool_start") {
-        console.error(`[glm:code] Tool: ${event.tool} ${event.args ? JSON.stringify(event.args).slice(0, 80) : ""}`);
+
+      const turnText = turnTextParts.join("");
+      allTextParts.push(turnText);
+
+      // Stop if the model didn't use any tools (just produced text = it's done)
+      if (!turnUsedTools) {
+        console.error("[glm:code] No tool calls in this turn — model is done.");
+        break;
       }
+
+      // Stop if model signals completion
+      const lower = turnText.toLowerCase();
+      if (lower.includes("all tasks completed") || lower.includes("all 10 tasks") || lower.includes("implementation complete")) {
+        console.error("[glm:code] Model signalled completion.");
+        break;
+      }
+
+      // Continue to next task
+      prompt = "Continue with the next task. If all tasks are complete, say 'All tasks completed'.";
     }
 
     // Get final assistant text
@@ -442,7 +472,7 @@ async function cmdCode(flags, positional) {
     try {
       finalText = await pi.getLastAssistantText();
     } catch {
-      finalText = textParts.join("") || "(No output captured)";
+      finalText = allTextParts.join("\n") || "(No output captured)";
     }
 
     console.log(finalText);

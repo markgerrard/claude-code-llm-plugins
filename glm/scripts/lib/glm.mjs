@@ -12,6 +12,7 @@ const DEFAULT_TIMEOUT_MS = 300_000; // 5 minutes
 const DEFAULT_MODEL = "glm-5-turbo";
 
 const MODEL_ALIASES = new Map([
+  ["5.1", "glm-5.1"],
   ["5", "glm-5"],
   ["turbo", "glm-5-turbo"],
   ["4.7", "glm-4.7"],

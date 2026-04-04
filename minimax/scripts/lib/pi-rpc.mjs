@@ -41,6 +41,7 @@ export function createPiClient(options = {}) {
   const pendingRequests = new Map();
   const eventListeners = [];
   let stderr = "";
+  let exitInfo = null; // captures exit if it happens before anyone is listening
 
   function handleLine(line) {
     try {
@@ -61,6 +62,7 @@ export function createPiClient(options = {}) {
 
   function send(command) {
     if (!proc?.stdin) throw new Error("Pi client not started");
+    if (exitInfo) throw new Error(`Pi already exited (code ${exitInfo.code}). stderr: ${stderr.slice(-500)}`);
     const id = `req_${++requestId}`;
     const full = { ...command, id };
     return new Promise((resolve, reject) => {
@@ -98,6 +100,16 @@ export function createPiClient(options = {}) {
 
       proc.stderr?.on("data", (d) => { stderr += d.toString(); });
       stopReading = attachJsonlReader(proc.stdout, handleLine);
+
+      // Capture exit globally so no event is lost between start() and promptAndWait()
+      proc.on("exit", (code) => {
+        exitInfo = { code, stderr: stderr.slice(-500) };
+        // Reject all pending requests
+        for (const [id, pending] of pendingRequests) {
+          pending.reject(new Error(`Pi exited (code ${code}). stderr: ${stderr.slice(-500)}`));
+        }
+        pendingRequests.clear();
+      });
 
       await new Promise((resolve) => setTimeout(resolve, 500));
       if (proc.exitCode !== null) {
@@ -148,12 +160,17 @@ export function createPiClient(options = {}) {
       return getData(r).text;
     },
 
-    waitForIdle(timeout = 300000) {
+    waitForIdle(timeout = 0) {
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => { unsub(); reject(new Error("Pi RPC timeout")); }, timeout);
+        // Already exited?
+        if (exitInfo) return reject(new Error(`Pi already exited (code ${exitInfo.code}). stderr: ${exitInfo.stderr}`));
+        let timer;
+        if (timeout > 0) {
+          timer = setTimeout(() => { unsub(); reject(new Error("Pi RPC timeout")); }, timeout);
+        }
         const unsub = this.onEvent((event) => {
           if (event.type === "agent_end") {
-            clearTimeout(timer);
+            if (timer) clearTimeout(timer);
             unsub();
             resolve();
           }
@@ -161,23 +178,41 @@ export function createPiClient(options = {}) {
       });
     },
 
-    async promptAndWait(message, timeout = 300000) {
+    async promptAndWait(message, timeout = 0) {
+      // Check if Pi already exited before we even start
+      if (exitInfo) {
+        throw new Error(`Pi already exited (code ${exitInfo.code}). stderr: ${exitInfo.stderr}`);
+      }
+
       const events = [];
       const done = new Promise((resolve, reject) => {
-        const timer = setTimeout(() => { unsub(); reject(new Error("Pi RPC timeout")); }, timeout);
+        let timer;
+        if (timeout > 0) {
+          timer = setTimeout(() => { unsub(); offExit(); reject(new Error("Pi RPC timeout")); }, timeout);
+        }
         const unsub = this.onEvent((event) => {
           events.push(event);
           if (event.type === "agent_end") {
-            clearTimeout(timer);
+            if (timer) clearTimeout(timer);
             unsub();
+            offExit();
             resolve(events);
           }
         });
+        // Detect Pi process exit before agent_end
+        const onExit = (code) => {
+          if (timer) clearTimeout(timer);
+          unsub();
+          reject(new Error(`Pi exited unexpectedly (code ${code}). stderr: ${stderr.slice(-500)}`));
+        };
+        proc?.on("exit", onExit);
+        const offExit = () => proc?.off("exit", onExit);
       });
       await this.prompt(message);
       return done;
     },
 
+    getExitInfo() { return exitInfo; },
     getStderr() { return stderr; },
   };
 }
